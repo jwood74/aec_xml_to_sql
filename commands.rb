@@ -25,7 +25,7 @@ def download_file
 
 	newfile =  aec_ftp.download_file_if_newer   ### returns false if no newer file, otherwise returns the local path of the new file
 
-	if newfile != FALSE
+	if newfile != false
 		newfile.sub! ' (Queensland Labor)',''
 		newfile.sub! '/raw',''
 
@@ -61,8 +61,8 @@ def load_XML(xmlfile)
 	end
 	@doc.remove_namespaces!
 
-	# updated = @doc.at_xpath("//MediaFeed")['Created']
-	# sql_upload("insert into " + $elec + "_syncs (updated) values (\'#{updated}\');")
+	updated = @doc.at_xpath("//MediaFeed")['Created']
+	sql_upload("insert into " + $elec + "_syncs (updated) values (\'#{updated}\');")
 	return @doc
 end
 
@@ -77,7 +77,7 @@ def reuse_file
 	end
 	@doc.remove_namespaces!
 
-	# updated = @doc.at_xpath("//MediaFeed")['Created']
+	updated = @doc.at_xpath("//MediaFeed")['Created']
 	return @doc
 end
 
@@ -97,13 +97,15 @@ def create_views
 	puts "Let's create some views."
 	sql = "drop view if exists vw_#{$elec}_results; CREATE VIEW `vw_#{$elec}_results` AS SELECT d.#{$area}_id, d.#{$area}_name AS #{$area}, b.pollingplace_id AS booth_id, b.pollingplace_name AS booth_name, c.ballot_position, c.candidate_name AS candidate_name, a.short_name AS party, r.type AS vote_type, vt.description AS description, r.votes AS votes, r.result_id AS result_id, r.area_id AS area_id, r.entity_id AS entity_id FROM ( ( ( ( ( #{$elec}_booths b JOIN #{$elec}_results r ON ( ( b.pollingplace_id = r.area_id ) ) ) JOIN #{$elec}_candidates c ON ( (c.candidate_id = r.entity_id) ) ) JOIN #{$elec}_vote_types vt ON ((vt.vote_id = r.type)) ) JOIN #{$elec}_parties a ON ( ( a.affiliation_id = c.affiliation_code ) ) ) JOIN #{$elec}_#{$area}s d ON ((d.#{$area}_id = c.#{$area}_id)) ) ORDER BY d.#{$area}_name, b.pollingplace_name;"
 	sql_upload(sql)
-	sql = "drop view if exists vw_#{$elec}_results_booth; CREATE VIEW `vw_#{$elec}_results_booth` AS select `r`.`#{$area}_id` AS `#{$area}_id`,`r`.`#{$area}` AS `#{$area}`,`r`.`booth_id` AS `booth_id`,`r`.`booth_name` AS `booth_name`,sum(if(((`r`.`party` = 'ALP') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_alp`,sum(if(((`r`.`party` = 'LNP') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_lnp`,sum(if(((`r`.`party` = 'GRN') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_grn`,sum(if(((`r`.`party` = 'ONP') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_onp`,sum(if(((`r`.`party` not in ('ALP','LNP','GRN','ONP')) and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_oth`,sum(if((`r`.`vote_type` = 1),`r`.`votes`,0)) AS `fp_votes`,sum(if(((`r`.`party` = 'ALP') and (`r`.`vote_type` = 2)),`r`.`votes`,0)) AS `tcp_alp`,sum(if(((`r`.`party` = 'LNP') and (`r`.`vote_type` = 2)),`r`.`votes`,0)) AS `tcp_lnp`,sum(if((`r`.`vote_type` = 2),`r`.`votes`,0)) AS `tcp_votes` from `vw_#{$elec}_results` `r` group by `r`.`#{$area}_id`,`r`.`booth_id`;"
+	sql = "drop view if exists vw_#{$elec}_results_booth; CREATE VIEW `vw_#{$elec}_results_booth` AS select `r`.`#{$area}_id` AS `#{$area}_id`,`r`.`#{$area}` AS `#{$area}`,`r`.`booth_id` AS `booth_id`,`r`.`booth_name` AS `booth_name`,sum(if(((`r`.`party` = 'ALP') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_alp`,sum(if(((`r`.`party` in ('LNP','LP')) and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_lnp`,sum(if(((`r`.`party` = 'GRN') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_grn`,sum(if(((`r`.`party` = 'ONP') and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_onp`,sum(if(((`r`.`party` not in ('ALP','LNP','GRN','ONP','LP')) and (`r`.`vote_type` = 1)),`r`.`votes`,0)) AS `fp_oth`,sum(if((`r`.`vote_type` = 1),`r`.`votes`,0)) AS `fp_votes`,sum(if(((`r`.`party` = 'ALP') and (`r`.`vote_type` = 2)),`r`.`votes`,0)) AS `tcp_alp`,sum(if(((`r`.`party` in ('LNP','LP')) and (`r`.`vote_type` = 5)),`r`.`votes`,0)) AS `tcp_lnp`,sum(if((`r`.`vote_type` = 5),`r`.`votes`,0)) AS `tcp_votes` from `vw_#{$elec}_results` `r` group by `r`.`#{$area}_id`,`r`.`booth_id`;"
 	sql_upload(sql)
-	sql = "drop view if exists vw_#{$elec}_results_house_by_division; create view vw_#{$elec}_results_house_by_division as select #{$area}_state as stateab, #{$area}_id as divisionid, #{$area}_name as divisionnm, candidate_id as candidateid, last_name as surname, first_ballot_name as givennm, ballot_position as ballotposition, elected, historicelected, partyab, party_name as partynm, ordinaryvotes, absentvotes, provisionalvotes, prepollvotes, postalvotes, totalvotes, swing from( SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, c.candidate_id, c.last_name, c.first_ballot_name, c.ballot_position, c.elected, c.historicelected, if(c.affiliation_code is null, 'IND',p.short_name) as partyab, if(p.party_name is null, 'Independent',p.party_name) as party_name, sum(if(r.type = 9,votes,0)) as ordinaryvotes, sum(if(r.type = 13,votes,0)) as absentvotes, sum(if(r.type = 17,votes,0)) as provisionalvotes, sum(if(r.type = 21,votes,0)) as prepollvotes, sum(if(r.type = 25,votes,0)) as postalvotes, sum(if(r.type = 29,votes,0)) as totalvotes, sum(if(r.type = 32,votes,0)) / 100 as swing from aec_fed2016_results r inner join aec_fed2016_#{$area}s s ON r.area_id = s.#{$area}_id inner join aec_fed2016_candidates c ON r.entity_id = c.candidate_id left join aec_fed2016_parties p ON c.affiliation_code = p.affiliation_id where r.type in (9,13,17,21,25,29,32) group by s.#{$area}_id, c.candidate_id union SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, 99991, 'Informal', 'Informal', 999, 'N', 'N', null as partyab, 'Informal' as party_name, sum(if(r.type = 9,votes,0)) as ordinaryvotes, sum(if(r.type = 13,votes,0)) as absentvotes, sum(if(r.type = 17,votes,0)) as provisionalvotes, sum(if(r.type = 21,votes,0)) as prepollvotes, sum(if(r.type = 25,votes,0)) as postalvotes, sum(if(r.type = 29,votes,0)) as totalvotes, sum(if(r.type = 32,votes,0)) / 100 as swing from aec_fed2016_results r inner join aec_fed2016_#{$area}s s ON r.area_id = s.#{$area}_id where r.type in (9,13,17,21,25,29,32) and entity_id = 99991 group by s.#{$area}_id) as x order by #{$area}_id, ballot_position;"
+	sql = "drop view if exists vw_#{$elec}_results_house_by_division; create view vw_#{$elec}_results_house_by_division as select #{$area}_state as stateab, #{$area}_id as divisionid, #{$area}_name as divisionnm, candidate_id as candidateid, last_name as surname, first_ballot_name as givennm, ballot_position as ballotposition, elected, historicelected, partyab, party_name as partynm, ordinaryvotes, absentvotes, provisionalvotes, prepollvotes, postalvotes, totalvotes, swing from( SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, c.candidate_id, c.last_name, c.first_ballot_name, c.ballot_position, c.elected, c.historicelected, if(c.affiliation_code is null, 'IND',p.short_name) as partyab, if(p.party_name is null, 'Independent',p.party_name) as party_name, sum(if(r.type = 9,votes,0)) as ordinaryvotes, sum(if(r.type = 13,votes,0)) as absentvotes, sum(if(r.type = 17,votes,0)) as provisionalvotes, sum(if(r.type = 21,votes,0)) as prepollvotes, sum(if(r.type = 25,votes,0)) as postalvotes, sum(if(r.type = 29,votes,0)) as totalvotes, sum(if(r.type = 32,votes,0)) / 100 as swing from #{$elec}_results r inner join #{$elec}_#{$area}s s ON r.area_id = s.#{$area}_id inner join #{$elec}_candidates c ON r.entity_id = c.candidate_id left join #{$elec}_parties p ON c.affiliation_code = p.affiliation_id where r.type in (9,13,17,21,25,29,32) group by s.#{$area}_id, c.candidate_id union SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, 99991, 'Informal', 'Informal', 999, 'N', 'N', null as partyab, 'Informal' as party_name, sum(if(r.type = 9,votes,0)) as ordinaryvotes, sum(if(r.type = 13,votes,0)) as absentvotes, sum(if(r.type = 17,votes,0)) as provisionalvotes, sum(if(r.type = 21,votes,0)) as prepollvotes, sum(if(r.type = 25,votes,0)) as postalvotes, sum(if(r.type = 29,votes,0)) as totalvotes, sum(if(r.type = 32,votes,0)) / 100 as swing from #{$elec}_results r inner join #{$elec}_#{$area}s s ON r.area_id = s.#{$area}_id where r.type in (9,13,17,21,25,29,32) and entity_id = 99991 group by s.#{$area}_id) as x order by #{$area}_id, ballot_position;"
 	sql_upload(sql)
-	sql = "drop view if exists vw_#{$elec}_results_house_by_pollingplace; create view vw_#{$elec}_results_house_by_pollingplace as select #{$area}_state as stateab, #{$area}_id as divisionid, #{$area}_name as divisionnm, pollingplace_id as pollingplaceid, pollingplace_name as pollingplace, candidate_id as candidateid, last_name as surname, first_ballot_name as givennm, ballot_position as ballotposition, elected, historicelected, partyab, party_name as partynm, ordinaryvotes, swing from( SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, b.pollingplace_id, b.pollingplace_name, c.candidate_id, c.last_name, c.first_ballot_name, c.ballot_position, c.elected, c.historicelected, if(c.affiliation_code is null, 'IND',p.short_name) as partyab, if(p.party_name is null, 'Independent',p.party_name) as party_name, sum(if(r.type = 1,votes,0)) as ordinaryvotes, sum(if(r.type = 4,votes,0)) / 100 as swing from aec_fed2016_results r inner join aec_fed2007_booths b ON r.area_id = b.pollingplace_id inner join aec_fed2016_candidates c ON r.entity_id = c.candidate_id inner join aec_fed2016_#{$area}s s ON c.#{$area}_id = s.#{$area}_id left join aec_fed2016_parties p ON c.affiliation_code = p.affiliation_id where r.type in (1,4) group by s.#{$area}_id, b.pollingplace_id, c.candidate_id union SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, b.pollingplace_id, b.pollingplace_name, 99991, 'Informal', 'Informal', 999, 'N', 'N', null as partyab, 'Informal' as party_name, sum(if(r.type = 1,votes,0)) as ordinaryvotes, sum(if(r.type = 4,votes,0)) / 100 as swing from aec_fed2016_results r inner join aec_fed2007_booths b ON r.area_id = b.pollingplace_id inner join aec_fed2016_#{$area}s s ON b.#{$area}_id = s.#{$area}_id where r.type in (1,4) and entity_id = 99991 group by s.#{$area}_id, b.pollingplace_id) as x order by #{$area}_id, pollingplace_id, ballot_position;"
+	sql = "drop view if exists vw_#{$elec}_results_house_by_pollingplace; create view vw_#{$elec}_results_house_by_pollingplace as select #{$area}_state as stateab, #{$area}_id as divisionid, #{$area}_name as divisionnm, pollingplace_id as pollingplaceid, pollingplace_name as pollingplace, candidate_id as candidateid, last_name as surname, first_ballot_name as givennm, ballot_position as ballotposition, elected, historicelected, partyab, party_name as partynm, ordinaryvotes, swing from( SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, b.pollingplace_id, b.pollingplace_name, c.candidate_id, c.last_name, c.first_ballot_name, c.ballot_position, c.elected, c.historicelected, if(c.affiliation_code is null, 'IND',p.short_name) as partyab, if(p.party_name is null, 'Independent',p.party_name) as party_name, sum(if(r.type = 1,votes,0)) as ordinaryvotes, sum(if(r.type = 4,votes,0)) / 100 as swing from #{$elec}_results r inner join #{$elec}_booths b ON r.area_id = b.pollingplace_id inner join #{$elec}_candidates c ON r.entity_id = c.candidate_id inner join #{$elec}_#{$area}s s ON c.#{$area}_id = s.#{$area}_id left join #{$elec}_parties p ON c.affiliation_code = p.affiliation_id where r.type in (1,4) group by s.#{$area}_id, b.pollingplace_id, c.candidate_id union SELECT s.#{$area}_state, s.#{$area}_id, s.#{$area}_name, b.pollingplace_id, b.pollingplace_name, 99991, 'Informal', 'Informal', 999, 'N', 'N', null as partyab, 'Informal' as party_name, sum(if(r.type = 1,votes,0)) as ordinaryvotes, sum(if(r.type = 4,votes,0)) / 100 as swing from #{$elec}_results r inner join #{$elec}_booths b ON r.area_id = b.pollingplace_id inner join #{$elec}_#{$area}s s ON b.#{$area}_id = s.#{$area}_id where r.type in (1,4) and entity_id = 99991 group by s.#{$area}_id, b.pollingplace_id) as x order by #{$area}_id, pollingplace_id, ballot_position;"
 	sql_upload(sql)
-	sql = "drop view if exists vw_#{$elec}_results_tpp_house_by_division; create view vw_#{$elec}_results_tpp_house_by_division as SELECT s.#{$area}_name, s.#{$area}_id, s.#{$area}_state, sum(if(r.type = 34 and r.entity_id = 2,votes,0)) as `Liberal/National Coalition TotalVotes`, sum(if(r.type = 36 and r.entity_id = 2,votes,0)) / 100 as `Liberal/National Coalition TotalPercentage`, sum(if(r.type = 37 and r.entity_id = 2,votes,0)) / 100 as `Liberal/National Coalition swing`, sum(if(r.type = 34 and r.entity_id = 1,votes,0)) as `Australian Labor Party TotalVotes`, sum(if(r.type = 36 and r.entity_id = 1,votes,0)) / 100 as `Australian Labor Party TotalPercentage`, sum(if(r.type = 37 and r.entity_id = 1,votes,0)) / 100 as `Australian Labor Party swing` from aec_fed2016_results r inner join aec_fed2016_#{$area}s s ON r.area_id = s.#{$area}_id where r.type in(34,36,37) group by s.#{$area}_id;"
+	sql = "drop view if exists vw_#{$elec}_results_tpp_house_by_division; create view vw_#{$elec}_results_tpp_house_by_division as SELECT s.#{$area}_name, s.#{$area}_id, s.#{$area}_state, sum(if(r.type = 34 and r.entity_id = 2,votes,0)) as `Liberal/National Coalition TotalVotes`, sum(if(r.type = 36 and r.entity_id = 2,votes,0)) / 100 as `Liberal/National Coalition TotalPercentage`, sum(if(r.type = 37 and r.entity_id = 2,votes,0)) / 100 as `Liberal/National Coalition swing`, sum(if(r.type = 34 and r.entity_id = 1,votes,0)) as `Australian Labor Party TotalVotes`, sum(if(r.type = 36 and r.entity_id = 1,votes,0)) / 100 as `Australian Labor Party TotalPercentage`, sum(if(r.type = 37 and r.entity_id = 1,votes,0)) / 100 as `Australian Labor Party swing` from #{$elec}_results r inner join #{$elec}_#{$area}s s ON r.area_id = s.#{$area}_id where r.type in(34,36,37) group by s.#{$area}_id;"
+	sql_upload(sql)
+	puts "Views complete!"
 end
 
 def process_booths
@@ -362,7 +364,7 @@ def process_candidate_order
 
 	puts "Processing the ballot order of candidates."
 
-	sql = "drop table if exists tmp_#{$elec}_ballot_order; create table tmp_#{$elec}_ballot_order (`#{$area}_id` varchar(11) DEFAULT NULL,  `candidate_id` int(11) NOT NULL, ballot_position int not null);"
+	sql = "drop table if exists tmp_#{$elec}_ballot_order; create temporary table tmp_#{$elec}_ballot_order (`#{$area}_id` varchar(11) DEFAULT NULL,  `candidate_id` int(11) NOT NULL, ballot_position int not null);"
 	sql << "insert into tmp_#{$elec}_ballot_order (`#{$area}_id`, `candidate_id`, ballot_position) values"
 
 	contests = @doc.at_xpath(".//House/Contests")
@@ -383,25 +385,28 @@ def process_candidate_order
 
 	contests = @doc.at_xpath(".//Senate/Contests")
 
-	contests.children.each do | contest |
-		contestid = contest.at_xpath("./ContestIdentifier")['Id']
+	unless contests.nil?
 
-		candidate = contest.xpath("./FirstPreferences//Candidate")
-		candidate.each do | cand |
+		contests.children.each do | contest |
+			contestid = contest.at_xpath("./ContestIdentifier")['Id']
 
-			candid  = cand.at_xpath("./CandidateIdentifier")['Id']
-			canorder = cand.at_xpath("./BallotPosition").text
+			candidate = contest.xpath("./FirstPreferences//Candidate")
+			candidate.each do | cand |
 
-			sql << "(\'#{contestid}\',#{candid},#{canorder}),"
-		end
+				candid  = cand.at_xpath("./CandidateIdentifier")['Id']
+				canorder = cand.at_xpath("./BallotPosition").text
 
-		ugcandidate = contest.xpath("./FirstPreferences//UngroupedCandidate")
-		ugcandidate.each do | cand |
+				sql << "(\'#{contestid}\',#{candid},#{canorder}),"
+			end
 
-			candid  = cand.at_xpath("./CandidateIdentifier")['Id']
-			canorder = cand.at_xpath("./BallotPosition").text
+			ugcandidate = contest.xpath("./FirstPreferences//UngroupedCandidate")
+			ugcandidate.each do | cand |
 
-			sql << "(\'#{contestid}\',#{candid},#{canorder}),"
+				candid  = cand.at_xpath("./CandidateIdentifier")['Id']
+				canorder = cand.at_xpath("./BallotPosition").text
+
+				sql << "(\'#{contestid}\',#{candid},#{canorder}),"
+			end
 		end
 	end
 
@@ -418,7 +423,7 @@ def process_candidate_elected
 
 	puts "Processing the election of candidates."
 
-	sql = "drop table if exists tmp_#{$elec}_candidate_elected; create table tmp_#{$elec}_candidate_elected (`#{$area}_id` varchar(11) DEFAULT NULL,  `candidate_id` int(11) NOT NULL, elected varchar(1), historicelected varchar(1));"
+	sql = "drop table if exists tmp_#{$elec}_candidate_elected; create temporary table tmp_#{$elec}_candidate_elected (`#{$area}_id` varchar(11) DEFAULT NULL,  `candidate_id` int(11) NOT NULL, elected varchar(1), historicelected varchar(1));"
 	sql << "insert into tmp_#{$elec}_candidate_elected (`#{$area}_id`, `candidate_id`, elected, historicelected) values"
 
 	contests = @doc.at_xpath(".//House/Contests")
@@ -452,53 +457,56 @@ def process_candidate_elected
 
 	contests = @doc.at_xpath(".//Senate/Contests")
 
-	contests.children.each do | contest |
-		contestid = contest.at_xpath("./ContestIdentifier")['Id']
+	unless contests.nil?
 
-		candidate = contest.xpath("./FirstPreferences//Candidate")
-		candidate.each do | cand |
+		contests.children.each do | contest |
+			contestid = contest.at_xpath("./ContestIdentifier")['Id']
 
-			candid  = cand.at_xpath("./CandidateIdentifier")['Id']
-			canelec = cand.at_xpath("./Elected").text
-			canhiselec = cand.at_xpath("./Elected")['Historic']
+			candidate = contest.xpath("./FirstPreferences//Candidate")
+			candidate.each do | cand |
 
-			if canelec == 'true'
-				canelec = 'Y'
-			else
-				canelec = 'N'
+				candid  = cand.at_xpath("./CandidateIdentifier")['Id']
+				canelec = cand.at_xpath("./Elected").text
+				canhiselec = cand.at_xpath("./Elected")['Historic']
+
+				if canelec == 'true'
+					canelec = 'Y'
+				else
+					canelec = 'N'
+				end
+
+				if canhiselec == 'true'
+					canhiselec = 'Y'
+				else
+					canhiselec = 'N'
+				end
+
+				sql << "(\'#{contestid}\',#{candid},\'#{canelec}\',\'#{canhiselec}\'),"
 			end
 
-			if canhiselec == 'true'
-				canhiselec = 'Y'
-			else
-				canhiselec = 'N'
+			ugcandidate = contest.xpath("./FirstPreferences//UngroupedCandidate")
+			ugcandidate.each do | cand |
+
+				candid  = cand.at_xpath("./CandidateIdentifier")['Id']
+				canelec = cand.at_xpath("./Elected").text
+				canhiselec = cand.at_xpath("./Elected")['Historic']
+
+				if canelec == 'true'
+					canelec = 'Y'
+				else
+					canelec = 'N'
+				end
+
+				if canhiselec == 'true'
+					canhiselec = 'Y'
+				else
+					canhiselec = 'N'
+				end			
+
+				sql << "(\'#{contestid}\',#{candid},\'#{canelec}\',\'#{canhiselec}\'),"
 			end
-
-			sql << "(\'#{contestid}\',#{candid},\'#{canelec}\',\'#{canhiselec}\'),"
-		end
-
-		ugcandidate = contest.xpath("./FirstPreferences//UngroupedCandidate")
-		ugcandidate.each do | cand |
-
-			candid  = cand.at_xpath("./CandidateIdentifier")['Id']
-			canelec = cand.at_xpath("./Elected").text
-			canhiselec = cand.at_xpath("./Elected")['Historic']
-
-			if canelec == 'true'
-				canelec = 'Y'
-			else
-				canelec = 'N'
-			end
-
-			if canhiselec == 'true'
-				canhiselec = 'Y'
-			else
-				canhiselec = 'N'
-			end			
-
-			sql << "(\'#{contestid}\',#{candid},\'#{canelec}\',\'#{canhiselec}\'),"
-		end
-	end	
+		end	
+	end
 
 	sql = sql[0..-2]
 	sql << "; update #{$elec}_candidates c, tmp_#{$elec}_candidate_elected b set c.elected = b.elected, c.historicelected = b.historicelected  where c.#{$area}_id = b.#{$area}_id and c.candidate_id = b.candidate_id;"
@@ -602,7 +610,7 @@ def create_votetypes_table
 	rescue
 		sql = "CREATE TABLE #{$elec}_vote_types (  vote_id int(11) NOT NULL,  type varchar(15) DEFAULT NULL,  description varchar(40) DEFAULT NULL,  PRIMARY KEY (vote_id),  UNIQUE KEY idx_type (type));"
 		sql_upload(sql)
-		sql_upload("INSERT INTO #{$elec}_vote_types (`vote_id`, `type`, `description`) VALUES ('1', 'pp_fp', 'polling place first preference'),('2', 'pp_his', 'polling place historic'),('3', 'pp_perc', 'polling place percent'),('4', 'pp_swing', 'polling place swing'),('5', 'pp_tcp', 'polling place tcp'),('6', 'pp_tcp_his', 'polling place tcp historic'),('7', 'pp_tcp_perc', 'polling place tcp percent'),('8', 'pp_tcp_swing', 'polling place tcp swing'),('9', 'c_ord_votes', 'candidate ordinary votes'),('10', 'c_ord_his', 'candidate ordinary historic'),('11', 'c_ord_perc', 'candidate ordinary percent'),('12', 'c_ord_swing', 'candidate ordinary swing'),('13', 'c_abs_votes', 'candidate absent votes'),('14', 'c_abs_his', 'candidate absent historic'),('15', 'c_abs_perc', 'candidate absent percent'),('16', 'c_abs_swing', 'candidate absent swing'),('17', 'c_pro_votes', 'candidate provisional votes'),('18', 'c_pro_his', 'candidate provisional historic'),('19', 'c_pro_perc', 'candidate provisional percent'),('20', 'c_pro_swing', 'candidate provisional swing'),('21', 'c_pre_votes', 'candidate prepoll votes'),('22', 'c_pre_his', 'candidate prepoll historic'),('23', 'c_pre_perc', 'candidate prepoll percent'),('24', 'c_pre_swing', 'candidate prepoll swing'),('25', 'c_pos_votes', 'candidate postal votes'),('26', 'c_pos_his', 'candidate postal historic'),('27', 'c_pos_perc', 'candidate postal percent'),('28', 'c_pos_swing', 'candidate postal swing'),('29', 'c_tot_votes', 'candidate total votes'),('30', 'c_tot_his', 'candidate total historic'),('31', 'c_tot_perc', 'candidate total percent'),('32', 'c_tot_swing', 'candidate total swing'),('33', 'c_tot_mhis', 'candidate total matched historic'),('34', 'tpp_votes', 'two party preferred votes'),('35', 'tpp_his', 'two party preferred historic'),('36', 'tpp_perc', 'two party preferred percent'),('37', 'tpp_swing', 'two party preferred swing'),('38', 'tpp_mhis', 'two party preferred matched historic'),('39', 'tcp_ord_votes', 'tcp ordinary votes'),('40', 'tcp_ord_his', 'tcp ordinary historic'),('41', 'tcp_ord_perc', 'tcp ordinary percentage'),('42', 'tcp_ord_swing', 'tcp ordinary swing'),('43', 'tcp_abs_votes', 'tcp absent votes'),('44', 'tcp_abs_his', 'tcp absent historic'),('45', 'tcp_abs_perc', 'tcp absent percentage'),('46', 'tcp_abs_swing', 'tcp absent swing'),('47', 'tcp_pro_votes', 'tcp provisional votes'),('48', 'tcp_pro_his', 'tcp provisional historic'),('49', 'tcp_pro_perc', 'tcp provisional percentage'),('50', 'tcp_pro_swing', 'tcp provisional swing'),('51', 'tcp_pre_votes', 'tcp prepoll votes'),('52', 'tcp_pre_his', 'tcp prepoll historic'),('53', 'tcp_pre_perc', 'tcp prepoll percentage'),('54', 'tcp_pre_swing', 'tcp prepoll swing'),('55', 'tcp_pos_votes', 'tcp postal votes'),('56', 'tcp_pos_his', 'tcp postal historic'),('57', 'tcp_pos_perc', 'tcp postal percentage'),('58', 'tcp_pos_swing', 'tcp postal swing'),('59', 'tcp_tot_votes', 'tcp total votes'),('60', 'tcp_tot_his', 'tcp total historic'),('61', 'tcp_tot_perc', 'tcp total percentage'),('62', 'tcp_tot_swing', 'tcp total swing'),('63', 'tcp_tot_mhis', 'tcp total matched historic'),('64', 'tco_tot_mhf', 'tcp total matched historic first pref'),('100', 'votes', 'all votes for the senate candidates'),('101', 'ticket', 'above the line votes'),('102', 'group', 'above the line plus candidate votes'),('103', 'state_formal', 'formal senate votes'),('104', 'state_informal', 'informal senate votes'),('105', 'state_total', 'total senate votes');")
+		sql_upload("INSERT INTO #{$elec}_vote_types (`vote_id`, `type`, `description`) VALUES ('1', 'pp_fp', 'polling place first preference'),('2', 'pp_his', 'polling place historic'),('3', 'pp_perc', 'polling place percent'),('4', 'pp_swing', 'polling place swing'),('5', 'pp_tcp', 'polling place tcp'),('6', 'pp_tcp_his', 'polling place tcp historic'),('7', 'pp_tcp_perc', 'polling place tcp percent'),('8', 'pp_tcp_swing', 'polling place tcp swing'),('9', 'c_ord_votes', 'candidate ordinary votes'),('10', 'c_ord_his', 'candidate ordinary historic'),('11', 'c_ord_perc', 'candidate ordinary percent'),('12', 'c_ord_swing', 'candidate ordinary swing'),('13', 'c_abs_votes', 'candidate absent votes'),('14', 'c_abs_his', 'candidate absent historic'),('15', 'c_abs_perc', 'candidate absent percent'),('16', 'c_abs_swing', 'candidate absent swing'),('17', 'c_pro_votes', 'candidate provisional votes'),('18', 'c_pro_his', 'candidate provisional historic'),('19', 'c_pro_perc', 'candidate provisional percent'),('20', 'c_pro_swing', 'candidate provisional swing'),('21', 'c_pre_votes', 'candidate prepoll votes'),('22', 'c_pre_his', 'candidate prepoll historic'),('23', 'c_pre_perc', 'candidate prepoll percent'),('24', 'c_pre_swing', 'candidate prepoll swing'),('25', 'c_pos_votes', 'candidate postal votes'),('26', 'c_pos_his', 'candidate postal historic'),('27', 'c_pos_perc', 'candidate postal percent'),('28', 'c_pos_swing', 'candidate postal swing'),('29', 'c_tot_votes', 'candidate total votes'),('30', 'c_tot_his', 'candidate total historic'),('31', 'c_tot_perc', 'candidate total percent'),('32', 'c_tot_swing', 'candidate total swing'),('33', 'c_tot_mhis', 'candidate total matched historic'),('34', 'tpp_votes', 'two party preferred votes'),('35', 'tpp_his', 'two party preferred historic'),('36', 'tpp_perc', 'two party preferred percent'),('37', 'tpp_swing', 'two party preferred swing'),('38', 'tpp_mhis', 'two party preferred matched historic'),('39', 'tcp_ord_votes', 'tcp ordinary votes'),('40', 'tcp_ord_his', 'tcp ordinary historic'),('41', 'tcp_ord_perc', 'tcp ordinary percentage'),('42', 'tcp_ord_swing', 'tcp ordinary swing'),('43', 'tcp_abs_votes', 'tcp absent votes'),('44', 'tcp_abs_his', 'tcp absent historic'),('45', 'tcp_abs_perc', 'tcp absent percentage'),('46', 'tcp_abs_swing', 'tcp absent swing'),('47', 'tcp_pro_votes', 'tcp provisional votes'),('48', 'tcp_pro_his', 'tcp provisional historic'),('49', 'tcp_pro_perc', 'tcp provisional percentage'),('50', 'tcp_pro_swing', 'tcp provisional swing'),('51', 'tcp_pre_votes', 'tcp prepoll votes'),('52', 'tcp_pre_his', 'tcp prepoll historic'),('53', 'tcp_pre_perc', 'tcp prepoll percentage'),('54', 'tcp_pre_swing', 'tcp prepoll swing'),('55', 'tcp_pos_votes', 'tcp postal votes'),('56', 'tcp_pos_his', 'tcp postal historic'),('57', 'tcp_pos_perc', 'tcp postal percentage'),('58', 'tcp_pos_swing', 'tcp postal swing'),('59', 'tcp_tot_votes', 'tcp total votes'),('60', 'tcp_tot_his', 'tcp total historic'),('61', 'tcp_tot_perc', 'tcp total percentage'),('62', 'tcp_tot_swing', 'tcp total swing'),('63', 'tcp_tot_mhis', 'tcp total matched historic'),('64', 'tcp_tot_mhf', 'tcp total matched historic first pref'),('100', 'votes', 'all votes for the senate candidates'),('101', 'ticket', 'above the line votes'),('102', 'group', 'above the line plus candidate votes'),('103', 'state_formal', 'formal senate votes'),('104', 'state_informal', 'informal senate votes'),('105', 'state_total', 'total senate votes');")
 		puts "VoteTypes table complete"
 	end
 end
@@ -845,6 +853,7 @@ def process_house_tcp
 	contests = @doc.at_xpath(".//House/Contests")
 
 	sql = "INSERT INTO " + $elec + "_results (result_id,area_id,entity_id,type,votes) VALUES "
+	tst = sql
 
 	contests.children.each do | contest |
 		contestid = contest.at_xpath("./ContestIdentifier")['Id']
@@ -892,12 +901,12 @@ def process_house_tcp
 		end
 	end
 
-	sql = sql[0..-2]
-	sql << "ON DUPLICATE KEY UPDATE votes = values(votes);"
-	log_report(2,'starting House TCP')
-	sql_upload(sql)
-	log_report(1,'Uploaded House TCP')
-	sleep 5
+		sql = sql[0..-2]
+		sql << " ON DUPLICATE KEY UPDATE votes = values(votes);"
+		log_report(2,'starting House TCP')
+		sql_upload(sql)
+		log_report(1,'Uploaded House TCP')
+		sleep 5
 end
 
 def process_senate
