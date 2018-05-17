@@ -2,7 +2,7 @@ class AECFtp
 
 	def initialize
 
-		@ftp = Net::FTP.new('mediafeed.aec.gov.au')		#results for 2013	#mediafeedtest for early	#mediafeed for actual
+		@ftp = Net::FTP.new('mediafeedarchive.aec.gov.au')		#results for 2013	#mediafeedtest for early	#mediafeed for actual		mediafeedarchive for old ones
 		@ftp.login
 
 		xlink = $elec_id.to_s + "/Detailed/" + $file_type.to_s
